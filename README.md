@@ -33,8 +33,8 @@ huangli-wechat-push/          # 即规范中的 huangli-bot
 | `ONLY_PUSH_WHEN_HIT` | 否 | `0` | `1` = 仅命中时推送 |
 | `TARGET_DATE` | 否 | 当天（北京时间） | `YYYY-MM-DD`，便于测试 |
 | `DRY_RUN` | 否 | `0` | `1` = 只生成 `card.png`，不推送 |
-| `FONT_REGULAR` | 否 | Noto Sans CJK Regular | 字体路径 |
-| `FONT_BOLD` | 否 | Noto Sans CJK Bold | 字体路径 |
+| `FONT_REGULAR` | 否 | `/System/Library/Fonts/PingFang.ttc` | 苹方简体 Regular |
+| `FONT_BOLD` | 否 | `/System/Library/Fonts/PingFang.ttc` | 苹方简体 Semibold（同一 TTC，不同 face） |
 
 ## 本地测试
 
@@ -42,9 +42,9 @@ huangli-wechat-push/          # 即规范中的 huangli-bot
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# macOS 可指定系统字体
-export FONT_REGULAR=/System/Library/Fonts/PingFang.ttc
-export FONT_BOLD=/System/Library/Fonts/PingFang.ttc
+# 设计字体为苹方简体（macOS 默认即可；一般无需再 export）
+# export FONT_REGULAR=/System/Library/Fonts/PingFang.ttc
+# export FONT_BOLD=/System/Library/Fonts/PingFang.ttc
 
 # 验收：立冬
 TARGET_DATE=2026-11-07 DRY_RUN=1 python huangli.py
@@ -79,8 +79,8 @@ HTTP 非 200 或 `errcode != 0` 时重试 2 次（间隔 5 秒），仍失败则
 **Q: 免费微信服务号卡片只显示标题？**  
 本项目直连**企业微信群机器人**发图片，不经过 Server酱服务号通道。
 
-**Q: Ubuntu / Actions 缺字体？**  
-workflow 已安装 `fonts-noto-cjk`；本地 Linux 可 `sudo apt-get install fonts-noto-cjk`。
+**Q: 为什么用 macOS runner？**  
+设计字体是**苹方简体**。GitHub 的 `macos-latest` 自带 PingFang SC，与本地预览一致；Ubuntu 默认没有苹方。
 
 ## 验收记录（本地 DRY_RUN）
 

@@ -42,14 +42,20 @@ CHIP_RADIUS = 10
 CHIP_PAD_X = 18
 SECTION_CHIP_GAP = 28  # 「宜」「忌」标签下方到事项芯片的间距
 
-DEFAULT_FONT_REGULAR = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
-DEFAULT_FONT_BOLD = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
+# 设计字体：苹方简体（PingFang SC）。macOS / GitHub macos runner 自带。
+PINGFANG_TTC = "/System/Library/Fonts/PingFang.ttc"
+# PingFang.ttc face：SC Regular=2，SC Medium=5，SC Semibold=8
+PINGFANG_SC_REGULAR = 2
+PINGFANG_SC_SEMIBOLD = 8
+
+DEFAULT_FONT_REGULAR = PINGFANG_TTC
+DEFAULT_FONT_BOLD = PINGFANG_TTC
 FALLBACK_FONTS = [
-    "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
-    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-    "/System/Library/Fonts/PingFang.ttc",
+    PINGFANG_TTC,
     "/System/Library/Fonts/STHeiti Medium.ttc",
     "/System/Library/Fonts/Hiragino Sans GB.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     "/Library/Fonts/Arial Unicode.ttf",
 ]
 
@@ -128,9 +134,11 @@ def fetch_day(target: date) -> DayInfo:
     )
 
 
-def _ttc_face_index(path: str) -> int:
-    """Noto Sans CJK OTC 中简体通常为 index 2；其它 TTC 用 0。"""
+def _ttc_face_index(path: str, *, bold: bool = False) -> int:
+    """选择 TTC 中的简体面。苹方优先 SC；Noto CJK OTC 中 SC 多为 index 2。"""
     name = os.path.basename(path).lower()
+    if "pingfang" in name:
+        return PINGFANG_SC_SEMIBOLD if bold else PINGFANG_SC_REGULAR
     if "noto" in name and "cjk" in name and path.lower().endswith(".ttc"):
         if "sc" in name:
             return 0
@@ -138,12 +146,13 @@ def _ttc_face_index(path: str) -> int:
     return 0
 
 
-def _load_font(path: str, size: int) -> ImageFont.FreeTypeFont:
-    index = _ttc_face_index(path)
+def _load_font(path: str, size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont:
+    index = _ttc_face_index(path, bold=bold)
     try:
-        return ImageFont.truetype(path, size=size, index=index)
+        font = ImageFont.truetype(path, size=size, index=index)
     except OSError:
-        return ImageFont.truetype(path, size=size, index=0)
+        font = ImageFont.truetype(path, size=size, index=0)
+    return font
 
 
 def resolve_font_path(env_name: str, default: str) -> str:
@@ -157,7 +166,7 @@ def resolve_font_path(env_name: str, default: str) -> str:
                 logger.warning("%s=%s 不可用，改用 %s", env_name, configured, path)
             return path
     raise FileNotFoundError(
-        f"找不到字体：请设置 {env_name}（默认 {default}）"
+        f"找不到字体：请设置 {env_name}（设计字体为苹方简体，默认 {default}）"
     )
 
 
@@ -239,14 +248,19 @@ def render_card(info: DayInfo, keys: list[str]) -> bytes:
     font_regular_path = resolve_font_path("FONT_REGULAR", DEFAULT_FONT_REGULAR)
     font_bold_path = resolve_font_path("FONT_BOLD", DEFAULT_FONT_BOLD)
 
-    font_top = _load_font(font_bold_path, 32)
-    font_jie = _load_font(font_bold_path, 24)
-    font_day = _load_font(font_bold_path, 190)
-    font_lunar = _load_font(font_regular_path, 34)
-    font_gz = _load_font(font_regular_path, 26)
-    font_section = _load_font(font_bold_path, 28)
-    font_chip = _load_font(font_regular_path, 28)
-    font_tip = _load_font(font_bold_path, 26)
+    font_top = _load_font(font_bold_path, 32, bold=True)
+    font_jie = _load_font(font_bold_path, 24, bold=True)
+    font_day = _load_font(font_bold_path, 190, bold=True)
+    font_lunar = _load_font(font_regular_path, 34, bold=False)
+    font_gz = _load_font(font_regular_path, 26, bold=False)
+    font_section = _load_font(font_bold_path, 28, bold=True)
+    font_chip = _load_font(font_regular_path, 28, bold=False)
+    font_tip = _load_font(font_bold_path, 26, bold=True)
+    try:
+        fam, style = font_chip.getname()
+        logger.info("设计字体: %s %s（目标：苹方简体）", fam, style)
+    except Exception:
+        pass
 
     yi_show = display_items(info.yi, "诸事不宜")
     ji_show = display_items(info.ji, "无")
@@ -311,7 +325,7 @@ def render_card(info: DayInfo, keys: list[str]) -> bytes:
     ):
         if path and os.path.isfile(path):
             try:
-                candidate = _load_font(path, 190)
+                candidate = _load_font(path, 190, bold=True)
                 # 确保该字体能量出与 day_text 匹配的宽度
                 if _text_width(draw, day_text, candidate) > 0:
                     day_font = candidate
