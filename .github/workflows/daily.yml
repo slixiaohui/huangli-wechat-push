@@ -2,8 +2,8 @@ name: Daily Huangli Push
 
 on:
   schedule:
-    # UTC 22:30 = 北京时间 06:30（中国无夏令时，UTC+8 固定）
-    - cron: "30 22 * * *"
+    # UTC 23:30 = 北京时间 07:30
+    - cron: "30 23 * * *"
   workflow_dispatch:
 
 jobs:
@@ -19,11 +19,25 @@ jobs:
           python-version: "3.11"
           cache: pip
 
+      - name: Install Chinese fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Push today's huangli
+      - name: Generate and push card
         env:
-          SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
+          WECOM_HOOK: ${{ secrets.WECOM_HOOK }}
+          HIGHLIGHT_KEYS: ${{ vars.HIGHLIGHT_KEYS }}
           PYTHONUNBUFFERED: "1"
-        run: python main.py
+        run: python huangli.py
+
+      - name: Upload card artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: huangli-card
+          path: card.png
+          if-no-files-found: warn
