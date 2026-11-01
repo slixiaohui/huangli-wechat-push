@@ -26,10 +26,22 @@ jobs:
       - name: Generate and push card
         env:
           WECOM_HOOK: ${{ secrets.WECOM_HOOK }}
-          FONT_REGULAR: /System/Library/Fonts/PingFang.ttc
-          FONT_BOLD: /System/Library/Fonts/PingFang.ttc
           PYTHONUNBUFFERED: "1"
         run: |
+          # 探测苹方路径（不同 macOS 镜像路径可能不同）
+          PF=$(find /System/Library/Fonts /Library/Fonts -iname 'PingFang*.ttc' 2>/dev/null | head -1)
+          if [ -z "$PF" ]; then
+            PF=$(mdfind -name 'PingFang.ttc' 2>/dev/null | head -1)
+          fi
+          if [ -n "$PF" ]; then
+            export FONT_REGULAR="$PF"
+            export FONT_BOLD="$PF"
+            echo "Using PingFang at $PF"
+          else
+            echo "PingFang not found; listing font dirs:"
+            ls /System/Library/Fonts | head -100
+            find /System/Library/Fonts -iname '*fang*' -o -iname '*hei*' 2>/dev/null | head -40
+          fi
           # 仅当仓库 Variables 配置了 HIGHLIGHT_KEYS 时才注入，避免空字符串覆盖默认「交易」
           if [ -n "${{ vars.HIGHLIGHT_KEYS }}" ]; then
             export HIGHLIGHT_KEYS="${{ vars.HIGHLIGHT_KEYS }}"
