@@ -43,17 +43,22 @@ CHIP_PAD_X = 18
 SECTION_CHIP_GAP = 28  # 「宜」「忌」标签下方到事项芯片的间距
 
 # 设计字体：苹方简体（PingFang SC）。macOS / GitHub macos runner 自带。
-PINGFANG_TTC = "/System/Library/Fonts/PingFang.ttc"
-# PingFang.ttc face：SC Regular=2，SC Medium=5，SC Semibold=8
+PINGFANG_CANDIDATES = [
+    "/System/Library/Fonts/PingFang.ttc",
+    "/System/Library/Fonts/PingFangSC.ttc",
+    "/System/Library/Fonts/Supplemental/PingFang.ttc",
+    "/Library/Fonts/PingFang.ttc",
+]
+# 旧版 macOS 上 PingFang.ttc 的常见 SC face（仅作名称查找失败时的兜底）
 PINGFANG_SC_REGULAR = 2
 PINGFANG_SC_SEMIBOLD = 8
 
-DEFAULT_FONT_REGULAR = PINGFANG_TTC
-DEFAULT_FONT_BOLD = PINGFANG_TTC
+DEFAULT_FONT_REGULAR = PINGFANG_CANDIDATES[0]
+DEFAULT_FONT_BOLD = PINGFANG_CANDIDATES[0]
 FALLBACK_FONTS = [
-    PINGFANG_TTC,
-    "/System/Library/Fonts/STHeiti Medium.ttc",
+    *PINGFANG_CANDIDATES,
     "/System/Library/Fonts/Hiragino Sans GB.ttc",
+    "/System/Library/Fonts/STHeiti Medium.ttc",
     "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     "/Library/Fonts/Arial Unicode.ttf",
@@ -134,10 +139,62 @@ def fetch_day(target: date) -> DayInfo:
     )
 
 
+def _find_ttc_index(
+    path: str,
+    *,
+    family_substr: str,
+    style_prefs: tuple[str, ...],
+) -> int | None:
+    """在 TTC 中按 family/style 名称查找 face index。"""
+    if not path.lower().endswith(".ttc"):
+        return 0
+    for i in range(64):
+        try:
+            font = ImageFont.truetype(path, size=12, index=i)
+        except OSError:
+            break
+        try:
+            family, style = font.getname()
+        except Exception:
+            continue
+        if family_substr.lower() not in family.lower():
+            continue
+        style_l = style.lower()
+        for pref in style_prefs:
+            if pref.lower() == style_l:
+                return i
+    # 退一步：只要 family 匹配就取第一个
+    for i in range(64):
+        try:
+            font = ImageFont.truetype(path, size=12, index=i)
+            family, _style = font.getname()
+            if family_substr.lower() in family.lower():
+                return i
+        except OSError:
+            break
+        except Exception:
+            continue
+    return None
+
+
 def _ttc_face_index(path: str, *, bold: bool = False) -> int:
-    """选择 TTC 中的简体面。苹方优先 SC；Noto CJK OTC 中 SC 多为 index 2。"""
+    """选择 TTC 中的目标 face。苹方按名称找 SC；Noto CJK OTC 中 SC 多为 2。"""
     name = os.path.basename(path).lower()
     if "pingfang" in name:
+        if bold:
+            idx = _find_ttc_index(
+                path,
+                family_substr="PingFang SC",
+                style_prefs=("Semibold", "Medium", "Bold", "Regular"),
+            )
+        else:
+            idx = _find_ttc_index(
+                path,
+                family_substr="PingFang SC",
+                style_prefs=("Regular", "Medium"),
+            )
+        if idx is not None:
+            return idx
         return PINGFANG_SC_SEMIBOLD if bold else PINGFANG_SC_REGULAR
     if "noto" in name and "cjk" in name and path.lower().endswith(".ttc"):
         if "sc" in name:
@@ -158,12 +215,29 @@ def _load_font(path: str, size: int, *, bold: bool = False) -> ImageFont.FreeTyp
 def resolve_font_path(env_name: str, default: str) -> str:
     configured = os.environ.get(env_name, "").strip() or default
     candidates = [configured, *FALLBACK_FONTS]
+    # 再扫一遍常见目录，防止系统路径变更
+    for root in ("/System/Library/Fonts", "/Library/Fonts"):
+        if not os.path.isdir(root):
+            continue
+        try:
+            for fname in os.listdir(root):
+                low = fname.lower()
+                if "pingfang" in low and low.endswith((".ttc", ".ttf", ".otf")):
+                    candidates.append(os.path.join(root, fname))
+        except OSError:
+            pass
+
+    seen: set[str] = set()
     for path in candidates:
-        if path and os.path.isfile(path):
-            if path != configured and configured == default:
-                logger.warning("默认字体不存在，改用 %s", path)
-            elif path != configured:
-                logger.warning("%s=%s 不可用，改用 %s", env_name, configured, path)
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        if os.path.isfile(path):
+            if path != configured:
+                if configured == default:
+                    logger.warning("默认字体路径不可用，改用 %s", path)
+                else:
+                    logger.warning("%s=%s 不可用，改用 %s", env_name, configured, path)
             return path
     raise FileNotFoundError(
         f"找不到字体：请设置 {env_name}（设计字体为苹方简体，默认 {default}）"
