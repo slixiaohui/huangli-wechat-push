@@ -33,8 +33,8 @@ huangli-wechat-push/          # 即规范中的 huangli-bot
 | `ONLY_PUSH_WHEN_HIT` | 否 | `0` | `1` = 仅命中时推送 |
 | `TARGET_DATE` | 否 | 当天（北京时间） | `YYYY-MM-DD`，便于测试 |
 | `DRY_RUN` | 否 | `0` | `1` = 只生成 `card.png`，不推送 |
-| `FONT_REGULAR` | 否 | `/System/Library/Fonts/PingFang.ttc` | 苹方简体 Regular |
-| `FONT_BOLD` | 否 | `/System/Library/Fonts/PingFang.ttc` | 苹方简体 Semibold（同一 TTC，不同 face） |
+| `FONT_REGULAR` | 否 | 系统苹方 / `fonts/SourceHanSansSC-Regular.otf` | 优先苹方简体 Regular |
+| `FONT_BOLD` | 否 | 系统苹方 / `fonts/SourceHanSansSC-Bold.otf` | 优先苹方简体 Semibold |
 
 ## 本地测试
 
@@ -79,8 +79,8 @@ HTTP 非 200 或 `errcode != 0` 时重试 2 次（间隔 5 秒），仍失败则
 **Q: 免费微信服务号卡片只显示标题？**  
 本项目直连**企业微信群机器人**发图片，不经过 Server酱服务号通道。
 
-**Q: 为什么用 macOS runner？**  
-设计字体是**苹方简体**。GitHub 的 `macos-latest` 自带 PingFang SC，与本地预览一致；Ubuntu 默认没有苹方。
+**Q: 字体是苹方吗？**  
+设计目标是**苹方简体**。本机 macOS 会自动用系统 PingFang SC；GitHub Actions 托管镜像不含苹方，CI 会缓存下载 **思源黑体 CN**（开源，同属现代中文黑体）作为替代。若 CI 也必须用真苹方，需改用 self-hosted Mac runner。
 
 ## 验收记录（本地 DRY_RUN）
 

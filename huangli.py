@@ -55,14 +55,33 @@ PINGFANG_SC_SEMIBOLD = 8
 
 DEFAULT_FONT_REGULAR = PINGFANG_CANDIDATES[0]
 DEFAULT_FONT_BOLD = PINGFANG_CANDIDATES[0]
-FALLBACK_FONTS = [
+
+# 相对仓库根目录的思源黑体（CI 下载；本地若无苹方也可放这里）
+_REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+SOURCE_HAN_REGULAR = os.path.join(_REPO_ROOT, "fonts", "SourceHanSansSC-Regular.otf")
+SOURCE_HAN_BOLD = os.path.join(_REPO_ROOT, "fonts", "SourceHanSansSC-Bold.otf")
+
+FALLBACK_FONTS_REGULAR = [
     *PINGFANG_CANDIDATES,
+    SOURCE_HAN_REGULAR,
     "/System/Library/Fonts/Hiragino Sans GB.ttc",
-    "/System/Library/Fonts/STHeiti Medium.ttc",
+    "/System/Library/Fonts/STHeiti Light.ttc",
     "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     "/Library/Fonts/Arial Unicode.ttf",
 ]
+FALLBACK_FONTS_BOLD = [
+    *PINGFANG_CANDIDATES,
+    SOURCE_HAN_BOLD,
+    SOURCE_HAN_REGULAR,
+    "/System/Library/Fonts/Hiragino Sans GB.ttc",
+    "/System/Library/Fonts/STHeiti Medium.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Bold.otf",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+    "/Library/Fonts/Arial Unicode.ttf",
+]
+# 兼容旧名
+FALLBACK_FONTS = FALLBACK_FONTS_REGULAR
 
 MAX_ATTEMPTS = 3  # 首次 + 重试 2 次
 RETRY_INTERVAL_SEC = 5
@@ -212,9 +231,10 @@ def _load_font(path: str, size: int, *, bold: bool = False) -> ImageFont.FreeTyp
     return font
 
 
-def resolve_font_path(env_name: str, default: str) -> str:
+def resolve_font_path(env_name: str, default: str, *, bold: bool = False) -> str:
     configured = os.environ.get(env_name, "").strip() or default
-    candidates = [configured, *FALLBACK_FONTS]
+    fallbacks = FALLBACK_FONTS_BOLD if bold else FALLBACK_FONTS_REGULAR
+    candidates = [configured, *fallbacks]
     # 再扫一遍常见目录，防止系统路径变更
     for root in ("/System/Library/Fonts", "/Library/Fonts"):
         if not os.path.isdir(root):
@@ -233,11 +253,8 @@ def resolve_font_path(env_name: str, default: str) -> str:
             continue
         seen.add(path)
         if os.path.isfile(path):
-            if path != configured:
-                if configured == default:
-                    logger.warning("默认字体路径不可用，改用 %s", path)
-                else:
-                    logger.warning("%s=%s 不可用，改用 %s", env_name, configured, path)
+            if os.path.abspath(path) != os.path.abspath(configured):
+                logger.info("字体回退: %s → %s", configured, path)
             return path
     raise FileNotFoundError(
         f"找不到字体：请设置 {env_name}（设计字体为苹方简体，默认 {default}）"
@@ -319,8 +336,10 @@ def calc_card_height(
 
 
 def render_card(info: DayInfo, keys: list[str]) -> bytes:
-    font_regular_path = resolve_font_path("FONT_REGULAR", DEFAULT_FONT_REGULAR)
-    font_bold_path = resolve_font_path("FONT_BOLD", DEFAULT_FONT_BOLD)
+    font_regular_path = resolve_font_path(
+        "FONT_REGULAR", DEFAULT_FONT_REGULAR, bold=False
+    )
+    font_bold_path = resolve_font_path("FONT_BOLD", DEFAULT_FONT_BOLD, bold=True)
 
     font_top = _load_font(font_bold_path, 32, bold=True)
     font_jie = _load_font(font_bold_path, 24, bold=True)
