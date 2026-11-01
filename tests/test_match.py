@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import date
 
 from huangli import (
+    CHIP_GAP,
+    CHIP_H,
     DayInfo,
     calc_card_height,
     display_items,
@@ -69,6 +71,6 @@ def test_layout_chips_wraps():
     labels = [f"item{i:02d}" for i in range(12)]
     rows, height = layout_chips(labels, font, max_width=120)
     assert len(rows) >= 2
-    assert height == len(rows) * 52 + (len(rows) - 1) * 12
+    assert height == len(rows) * CHIP_H + (len(rows) - 1) * CHIP_GAP
     flat = [t for row in rows for t, _ in row]
     assert flat == labels

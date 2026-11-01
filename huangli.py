@@ -35,12 +35,20 @@ COLOR_GOLD_DEEP = (0xA0, 0x6E, 0x00)  # 底部宜命中提示
 
 CARD_WIDTH = 750
 PAD_X = 48
-TOP_BAR_H = 84
-CHIP_H = 52
-CHIP_GAP = 12
-CHIP_RADIUS = 10
-CHIP_PAD_X = 18
-SECTION_CHIP_GAP = 28  # 「宜」「忌」标签下方到事项芯片的间距
+TOP_BAR_H = 88
+CHIP_H = 58
+CHIP_GAP = 14
+CHIP_RADIUS = 12
+CHIP_PAD_X = 22
+SECTION_LABEL_H = 40
+SECTION_LABEL_PAD_X = 18
+SECTION_CHIP_GAP = 34  # 「宜」「忌」标签下方到事项芯片
+SECTION_BLOCK_GAP = 22  # 宜区块与忌区块之间
+TIP_TOP_GAP = 28
+BOTTOM_PAD = 56
+DAY_TO_LUNAR_GAP = 18
+LUNAR_TO_GZ_GAP = 14
+GZ_TO_SECTION_GAP = 36
 
 # 设计字体：苹方简体（PingFang SC）。macOS / GitHub macos runner 自带。
 PINGFANG_CANDIDATES = [
@@ -273,6 +281,23 @@ def _text_width(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont)
     return bbox[2] - bbox[0]
 
 
+def _draw_text_centered(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[float, float, float, float],
+    text: str,
+    font: ImageFont.ImageFont,
+    fill: tuple[int, int, int],
+) -> None:
+    """在矩形框内水平+垂直居中绘制文字（按 textbbox 真实墨水盒对齐）。"""
+    left, top, right, bottom = box
+    bbox = draw.textbbox((0, 0), text, font=font)
+    tw = bbox[2] - bbox[0]
+    th = bbox[3] - bbox[1]
+    x = left + (right - left - tw) / 2 - bbox[0]
+    y = top + (bottom - top - th) / 2 - bbox[1]
+    draw.text((x, y), text, font=font, fill=fill)
+
+
 def layout_chips(
     labels: list[str],
     font: ImageFont.ImageFont,
@@ -315,23 +340,25 @@ def calc_card_height(
     y = TOP_BAR_H + 28
     if has_jie_qi:
         y += 36 + 12
-    y += day_glyph_h + 8
-    y += 42  # 农历
-    y += 40  # 干支
+    y += day_glyph_h + DAY_TO_LUNAR_GAP
+    y += 40  # 农历行
+    y += LUNAR_TO_GZ_GAP
+    y += 34  # 干支行
+    y += GZ_TO_SECTION_GAP
     # 宜
-    y += 36 + SECTION_CHIP_GAP
+    y += SECTION_LABEL_H + SECTION_CHIP_GAP
     if yi_rows:
         y += yi_rows * CHIP_H + max(0, yi_rows - 1) * CHIP_GAP
-    y += CHIP_GAP  # draw_section 末行后多加的间距
-    y += 8
+    y += CHIP_GAP
+    y += SECTION_BLOCK_GAP
     # 忌
-    y += 36 + SECTION_CHIP_GAP
+    y += SECTION_LABEL_H + SECTION_CHIP_GAP
     if ji_rows:
         y += ji_rows * CHIP_H + max(0, ji_rows - 1) * CHIP_GAP
     y += CHIP_GAP
-    y += 16
+    y += TIP_TOP_GAP
     y += 32  # 提示行
-    y += 40  # 底边距
+    y += BOTTOM_PAD
     return y
 
 
@@ -382,12 +409,12 @@ def render_card(info: DayInfo, keys: list[str]) -> bytes:
     # 1. 顶部条
     draw.rectangle((0, 0, CARD_WIDTH, TOP_BAR_H), fill=COLOR_DEEP_GREEN)
     top_text = f"{info.year}年 {info.month}月  {info.week_label}"
-    tw = _text_width(draw, top_text, font_top)
-    draw.text(
-        ((CARD_WIDTH - tw) / 2, (TOP_BAR_H - 32) / 2 - 2),
+    _draw_text_centered(
+        draw,
+        (0, 0, CARD_WIDTH, TOP_BAR_H),
         top_text,
-        fill=COLOR_WHITE,
-        font=font_top,
+        font_top,
+        COLOR_WHITE,
     )
 
     y = TOP_BAR_H + 28
@@ -396,50 +423,64 @@ def render_card(info: DayInfo, keys: list[str]) -> bytes:
     # 2. 节气标签
     if info.jie_qi:
         label = info.jie_qi
-        lw = _text_width(draw, label, font_jie) + 28
-        lh = 36
-        draw.rounded_rectangle(
-            (PAD_X, y, PAD_X + lw, y + lh),
-            radius=10,
-            fill=COLOR_DEEP_GREEN,
-        )
-        draw.text((PAD_X + 14, y + 4), label, fill=COLOR_WHITE, font=font_jie)
-        y += lh + 12
+        lw = _text_width(draw, label, font_jie) + SECTION_LABEL_PAD_X * 2
+        lh = SECTION_LABEL_H
+        box = (PAD_X, y, PAD_X + lw, y + lh)
+        draw.rounded_rectangle(box, radius=10, fill=COLOR_DEEP_GREEN)
+        _draw_text_centered(draw, box, label, font_jie, COLOR_WHITE)
+        y += lh + 16
 
-    # 3. 大号日期（优先用更清晰的数字字形）
+    # 3. 大号日期
     day_text = str(info.day)
     day_font = font_day
     for path in (
         os.environ.get("FONT_BOLD", "").strip(),
-        DEFAULT_FONT_BOLD,
-        "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-        "/Library/Fonts/Arial Unicode.ttf",
         font_bold_path,
+        DEFAULT_FONT_BOLD,
+        SOURCE_HAN_BOLD,
     ):
         if path and os.path.isfile(path):
             try:
                 candidate = _load_font(path, 190, bold=True)
-                # 确保该字体能量出与 day_text 匹配的宽度
                 if _text_width(draw, day_text, candidate) > 0:
                     day_font = candidate
                     break
             except OSError:
                 continue
-    dw = _text_width(draw, day_text, day_font)
     bbox = draw.textbbox((0, 0), day_text, font=day_font)
+    dw = bbox[2] - bbox[0]
     dh = bbox[3] - bbox[1]
-    draw.text((cx - dw / 2, y - bbox[1]), day_text, fill=COLOR_INK, font=day_font)
-    y += dh + 8
+    draw.text(
+        (cx - dw / 2 - bbox[0], y - bbox[1]),
+        day_text,
+        fill=COLOR_INK,
+        font=day_font,
+    )
+    y += dh + DAY_TO_LUNAR_GAP
 
-    # 4. 农历
-    lw = _text_width(draw, info.lunar_month_day, font_lunar)
-    draw.text((cx - lw / 2, y), info.lunar_month_day, fill=COLOR_INK, font=font_lunar)
-    y += 42
+    # 4. 农历（水平居中，按 bbox 对齐）
+    lb = draw.textbbox((0, 0), info.lunar_month_day, font=font_lunar)
+    lw = lb[2] - lb[0]
+    lh = lb[3] - lb[1]
+    draw.text(
+        (cx - lw / 2 - lb[0], y - lb[1]),
+        info.lunar_month_day,
+        fill=COLOR_INK,
+        font=font_lunar,
+    )
+    y += lh + LUNAR_TO_GZ_GAP
 
     # 5. 干支 · 建除
-    gw = _text_width(draw, info.gan_zhi_line, font_gz)
-    draw.text((cx - gw / 2, y), info.gan_zhi_line, fill=COLOR_MUTED, font=font_gz)
-    y += 40
+    gb = draw.textbbox((0, 0), info.gan_zhi_line, font=font_gz)
+    gw = gb[2] - gb[0]
+    gh = gb[3] - gb[1]
+    draw.text(
+        (cx - gw / 2 - gb[0], y - gb[1]),
+        info.gan_zhi_line,
+        fill=COLOR_MUTED,
+        font=font_gz,
+    )
+    y += gh + GZ_TO_SECTION_GAP
 
     def draw_section(
         title: str,
@@ -449,19 +490,12 @@ def render_card(info: DayInfo, keys: list[str]) -> bytes:
         solid_color: tuple[int, int, int],
         start_y: int,
     ) -> int:
-        tw_ = _text_width(draw, title, font_section) + 24
-        th = 36
-        draw.rounded_rectangle(
-            (PAD_X, start_y, PAD_X + tw_, start_y + th),
-            radius=8,
-            fill=title_color,
-        )
-        draw.text(
-            (PAD_X + 12, start_y + 3),
-            title,
-            fill=COLOR_WHITE,
-            font=font_section,
-        )
+        tw_ = _text_width(draw, title, font_section) + SECTION_LABEL_PAD_X * 2
+        th = SECTION_LABEL_H
+        label_box = (PAD_X, start_y, PAD_X + tw_, start_y + th)
+        draw.rounded_rectangle(label_box, radius=10, fill=title_color)
+        _draw_text_centered(draw, label_box, title, font_section, COLOR_WHITE)
+
         cy = start_y + th + SECTION_CHIP_GAP
         for row in rows:
             x = PAD_X
@@ -480,29 +514,28 @@ def render_card(info: DayInfo, keys: list[str]) -> bytes:
                         width=2,
                     )
                     text_color = COLOR_INK
-                tw_chip = _text_width(draw, text, font_chip)
-                draw.text(
-                    (x + (chip_w - tw_chip) / 2, cy + (CHIP_H - 28) / 2 - 2),
-                    text,
-                    fill=text_color,
-                    font=font_chip,
-                )
+                _draw_text_centered(draw, box, text, font_chip, text_color)
                 x += chip_w + CHIP_GAP
             cy += CHIP_H + CHIP_GAP
         return cy
 
     y = draw_section("宜", COLOR_GOLD, yi_layout, yi_hit, COLOR_GOLD, y)
-    y += 8
+    y += SECTION_BLOCK_GAP
     y = draw_section("忌", COLOR_RED, ji_layout, ji_hit, COLOR_RED, y)
-    y += 16
+    y += TIP_TOP_GAP
 
     # 8. 底部提示
     tip, tip_color = build_tip(info.yi, info.ji, keys)
-    tip_w = _text_width(draw, tip, font_tip)
-    tip_x = cx - tip_w / 2
-    draw.text((tip_x, y), tip, fill=tip_color, font=font_tip)
-    # 部分字体 textbbox 偏紧，固定按字号 + 底边距裁切，避免提示被切掉
-    final_h = int(y + 26 + 64)
+    tb = draw.textbbox((0, 0), tip, font=font_tip)
+    tip_w = tb[2] - tb[0]
+    tip_h = tb[3] - tb[1]
+    draw.text(
+        (cx - tip_w / 2 - tb[0], y - tb[1]),
+        tip,
+        fill=tip_color,
+        font=font_tip,
+    )
+    final_h = int(y + tip_h + BOTTOM_PAD)
     img = img.crop((0, 0, CARD_WIDTH, min(final_h, canvas_h)))
 
     buf = io.BytesIO()
