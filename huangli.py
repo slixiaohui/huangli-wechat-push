@@ -40,6 +40,7 @@ CHIP_H = 52
 CHIP_GAP = 12
 CHIP_RADIUS = 10
 CHIP_PAD_X = 18
+SECTION_CHIP_GAP = 28  # 「宜」「忌」标签下方到事项芯片的间距
 
 DEFAULT_FONT_REGULAR = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
 DEFAULT_FONT_BOLD = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
@@ -218,13 +219,13 @@ def calc_card_height(
     y += 42  # 农历
     y += 40  # 干支
     # 宜
-    y += 36 + 14
+    y += 36 + SECTION_CHIP_GAP
     if yi_rows:
         y += yi_rows * CHIP_H + max(0, yi_rows - 1) * CHIP_GAP
     y += CHIP_GAP  # draw_section 末行后多加的间距
     y += 8
     # 忌
-    y += 36 + 14
+    y += 36 + SECTION_CHIP_GAP
     if ji_rows:
         y += ji_rows * CHIP_H + max(0, ji_rows - 1) * CHIP_GAP
     y += CHIP_GAP
@@ -354,7 +355,7 @@ def render_card(info: DayInfo, keys: list[str]) -> bytes:
             fill=COLOR_WHITE,
             font=font_section,
         )
-        cy = start_y + th + 14
+        cy = start_y + th + SECTION_CHIP_GAP
         for row in rows:
             x = PAD_X
             for text, chip_w in row:
