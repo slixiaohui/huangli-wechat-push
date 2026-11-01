@@ -44,6 +44,8 @@ CHIP_PAD_X = 18
 DEFAULT_FONT_REGULAR = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
 DEFAULT_FONT_BOLD = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
 FALLBACK_FONTS = [
+    "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
     "/System/Library/Fonts/PingFang.ttc",
     "/System/Library/Fonts/STHeiti Medium.ttc",
     "/System/Library/Fonts/Hiragino Sans GB.ttc",
@@ -125,8 +127,22 @@ def fetch_day(target: date) -> DayInfo:
     )
 
 
+def _ttc_face_index(path: str) -> int:
+    """Noto Sans CJK OTC 中简体通常为 index 2；其它 TTC 用 0。"""
+    name = os.path.basename(path).lower()
+    if "noto" in name and "cjk" in name and path.lower().endswith(".ttc"):
+        if "sc" in name:
+            return 0
+        return 2  # JP=0 KR=1 SC=2 TC=3
+    return 0
+
+
 def _load_font(path: str, size: int) -> ImageFont.FreeTypeFont:
-    return ImageFont.truetype(path, size=size, index=0)
+    index = _ttc_face_index(path)
+    try:
+        return ImageFont.truetype(path, size=size, index=index)
+    except OSError:
+        return ImageFont.truetype(path, size=size, index=0)
 
 
 def resolve_font_path(env_name: str, default: str) -> str:

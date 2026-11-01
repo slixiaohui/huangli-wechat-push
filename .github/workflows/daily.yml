@@ -30,9 +30,13 @@ jobs:
       - name: Generate and push card
         env:
           WECOM_HOOK: ${{ secrets.WECOM_HOOK }}
-          HIGHLIGHT_KEYS: ${{ vars.HIGHLIGHT_KEYS }}
           PYTHONUNBUFFERED: "1"
-        run: python huangli.py
+        run: |
+          # 仅当仓库 Variables 配置了 HIGHLIGHT_KEYS 时才注入，避免空字符串覆盖默认「交易」
+          if [ -n "${{ vars.HIGHLIGHT_KEYS }}" ]; then
+            export HIGHLIGHT_KEYS="${{ vars.HIGHLIGHT_KEYS }}"
+          fi
+          python huangli.py
 
       - name: Upload card artifact
         if: github.event_name == 'workflow_dispatch'

@@ -11,8 +11,6 @@ from huangli import (
     layout_chips,
     match_keys,
     parse_keys,
-    resolve_font_path,
-    DEFAULT_FONT_REGULAR,
 )
 from PIL import ImageFont
 
@@ -66,10 +64,10 @@ def test_calc_card_height_grows_with_rows():
 
 
 def test_layout_chips_wraps():
-    path = resolve_font_path("FONT_REGULAR", DEFAULT_FONT_REGULAR)
-    font = ImageFont.truetype(path, size=28, index=0)
-    labels = ["嫁娶", "纳采", "订盟", "祭祀", "祈福", "求嗣", "斋醮", "开光", "安香", "出火"]
-    rows, height = layout_chips(labels, font, max_width=750 - 48 * 2)
+    # 使用内置默认字体，不依赖系统 CJK 字体文件
+    font = ImageFont.load_default()
+    labels = [f"item{i:02d}" for i in range(12)]
+    rows, height = layout_chips(labels, font, max_width=120)
     assert len(rows) >= 2
     assert height == len(rows) * 52 + (len(rows) - 1) * 12
     flat = [t for row in rows for t, _ in row]
