@@ -2,8 +2,8 @@ name: Daily Huangli Push
 
 on:
   schedule:
-    # UTC 18:30 = 北京时间 06:30
-    - cron: "30 18 * * *"
+    # UTC 16:30 = 北京时间 06:30
+    - cron: "30 16 * * *"
   workflow_dispatch:
 
 jobs:
